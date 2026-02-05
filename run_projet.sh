@@ -18,7 +18,6 @@ tmux kill-session -t $SESSION 2>/dev/null
 # Panneau 1 : Central C | Panneau 2 : RMIServer Java | Panneau 3 : ConsoleRMI (Pont)
 tmux new-session -d -s $SESSION -n "Serveurs" "./central $CENTRAL_PORT"
 tmux split-window -h -t $SESSION "java RMIServer; exec bash"
-tmux split-window -v -t $SESSION "java ConsoleRMI ; exec bash"
 
 # --- ÉTAPE 2 : SALON - Port 5000 (Fenêtre 1) ---
 tmux new-window -t $SESSION -n "Salon" "java Air 224.0.0.1 5000 Salon; exec bash"
