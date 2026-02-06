@@ -1,94 +1,81 @@
-===========================================================================
-          PROJET : SYSTÈME DOMOTIQUE DISTRIBUÉ (C / JAVA RMI)
-===========================================================================
+========================================================================
+       SYSTÈME DE DOMOTIQUE DISTRIBUÉ (C / JAVA RMI / MULTICAST)
+========================================================================
 
-Ce projet implémente un système de gestion thermique intelligent. Il simule 
-la température de plusieurs pièces, permet leur monitoring en temps réel 
-et leur pilotage via différentes interfaces (Consoles C et Console Java RMI).
+1. PRÉSENTATION DU PROJET
+-------------------------
+Ce projet simule un système de contrôle de chauffage intelligent pour 
+une maison. Il repose sur une architecture distribuée mélangeant :
+- Le langage C pour la performance et la gestion réseau bas niveau.
+- Java (RMI) pour la gestion de l'interface de contrôle distante.
+- L'UDP Multicast pour la simulation physique (température de l'air).
+- Le TCP pour la communication fiable entre les modules et le Central.
 
----------------------------------------------------------------------------
-1. ARCHITECTURE DU SYSTÈME
----------------------------------------------------------------------------
+2. ARCHITECTURE TECHNIQUE
+-------------------------
+- SERVEUR CENTRAL (C) : Le pivot du système. Il gère les connexions TCP
+  des modules, valide les commandes, assure la résilience en cas de 
+  panne et sert de pont UDP avec le monde Java.
+- SIMULATION AIR (Java) : Calcule l'évolution thermique d'une pièce 
+  en fonction de la puissance de chauffe reçue par Multicast.
+- THERMOMÈTRE (C) : Capte la température de la simulation (Multicast)
+  et la transmet au Central (TCP).
+- CHAUFFAGE (C) : Agit sur la pièce. Supporte deux modes :
+    * MANUEL : Puissance fixée par l'utilisateur (0 à 5).
+    * AUTO : Régulation intelligente pour atteindre une température cible.
+- CONSOLES (C & Java RMI) : Permettent de monitorer les pièces et 
+  d'envoyer des ordres de commande.
 
-Le projet repose sur une architecture hybride distribuée :
+3. FONCTIONNALITÉS AVANCÉES
+---------------------------
+- GESTION D'ERREURS : 
+    * Validation stricte des saisies utilisateur (Puissance 0-5).
+    * Vérification de l'existence de la pièce avant envoi de commande.
+    * Protection contre les injections de texte à la place de nombres.
+- RÉSILIENCE ET ROBUSTESSE :
+    * Le Central ne crash pas si un module se déconnecte brusquement.
+    * Utilisation de SIGPIPE (C) et Try-with-resources (Java).
+    * Les autres pièces continuent de fonctionner si l'une d'elles tombe.
+- MODE THERMOSTAT (AUTO) :
+    * Implémentation d'une boucle de régulation dans le module chauffage.
 
-* CŒUR (C) : 
-    Serveur 'central' qui multiplexe les communications TCP et sert de 
-    pont UDP pour le monde Java.
+4. INSTALLATION ET COMPILATION
+------------------------------
+Pré-requis : Un environnement Linux avec GCC, Java JDK et Tmux installé.
 
-* SIMULATION PHYSIQUE (Java) : 
-    Programme 'Air' qui gère l'inertie thermique d'une pièce.
+Compilation automatique via le Makefile :
+   $ make clean
+   $ make
 
-* MODULES TERMINAUX (C) :
-    - thermometre : Capte la température via Multicast et informe le 
-      Central via TCP.
-    - chauffage   : Reçoit les ordres du Central (TCP) et agit sur la 
-      simulation (Multicast).
+Cela génère tous les exécutables C et compile les classes Java (.class).
 
-* INTERFACES DE CONTRÔLE :
-    - C : 'console_control' (monitoring) et 'console_cmd' (pilotage).
-    - Java RMI : 'RMIServer' (serveur d'objets) et 'ConsoleRMI' (pont).
+5. UTILISATION
+--------------
+Pour lancer l'intégralité du système (3 pièces + serveurs + consoles) :
+   $ chmod +x run_projet.sh
+   $ ./run_projet.sh
 
----------------------------------------------------------------------------
-2. PRÉ-REQUIS
----------------------------------------------------------------------------
+Le script utilise TMUX pour organiser les fenêtres :
+- Fenêtre 0 : Serveurs (Central, RMIServer, ConsoleRMI)
+- Fenêtres 1-3 : Pièces (Salon, Cuisine, Chambre)
+- Fenêtre 4 : Consoles de test C
 
-- OS      : Linux (Ubuntu recommandé)
-- Outils  : tmux installé (sudo apt install tmux)
-- Langages: GCC (C) et JDK (Java)
+Pour arrêter proprement tout le système :
+   $ ./stop_projet.sh
 
----------------------------------------------------------------------------
-3. COMPILATION ET LANCEMENT
----------------------------------------------------------------------------
+6. PROTOCOLE DE COMMUNICATION
+-----------------------------
+- TCP : Commandes SET, AUTO et notifications UPDATE, STAT.
+- UDP UNICAST (Port 9090/9091) : Dialogue entre le Central et Java RMI.
+- UDP MULTICAST : Flux de données physiques (Température/Puissance).
 
-A. Compilation automatique :
-   Tapez la commande suivante dans le dossier racine :
-   $ make clean && make && javac *.java
+7. DÉPANNAGE
+------------
+- Erreur "Port already in use" : Lancez ./stop_projet.sh pour libérer
+  les ports réseaux restés ouverts.
+- Erreur RMI : Vérifiez que le RMIServer est bien lancé avant la 
+  ConsoleRMI. Le serveur crée automatiquement son propre registre.
 
-B. Lancement avec TMUX (Recommandé) :
-   Le script 'run_tmux.sh' déploie l'infrastructure (11 panneaux / 5 fenêtres) :
-   $ chmod +x run_tmux.sh
-   $ ./run_tmux.sh
-
----------------------------------------------------------------------------
-4. ORGANISATION DES FENÊTRES TMUX
----------------------------------------------------------------------------
-
-Fenêtre 0: [Serveurs]   -> central, RMIServer, ConsoleRMI
-Fenêtre 1: [Salon]      -> Air, thermo, chauffage (Multicast Port 5000)
-Fenêtre 2: [Cuisine]    -> Air, thermo, chauffage (Multicast Port 5001)
-Fenêtre 3: [Chambre]    -> Air, thermo, chauffage (Multicast Port 5002)
-Fenêtre 4: [Consoles_C] -> console_control, console_cmd
-
----------------------------------------------------------------------------
-5. COMMANDES UTILES DANS TMUX
----------------------------------------------------------------------------
-
-- Changer de fenêtre      : Ctrl+B puis le chiffre (0 à 4)
-- Zoomer/Dézoomer         : Ctrl+B puis z
-- Naviguer entre panneaux : Ctrl+B puis les flèches directionnelles
-- Quitter la session      : Ctrl+B puis taper ":kill-session" + Entrée
-
----------------------------------------------------------------------------
-6. PROTOCOLES ET PORTS
----------------------------------------------------------------------------
-
-* TCP (8080)         : Enregistrement modules, ordres SET et UPDATE.
-* UDP Multicast (500x): Flux binaire Air <-> Modules.
-* UDP Unicast (9090)  : Communication Pont Java <-> Central C.
-* Java RMI (1099)     : Invocation de méthodes distantes.
-
----------------------------------------------------------------------------
-7. DÉPANNAGE (TROUBLESHOOTING)
----------------------------------------------------------------------------
-
-- Erreur "Address already in use" : 
-  Tuez les processus avec : fuser -k 8080/tcp ou pkill -9 central
-
-- Problème RMI : 
-  Assurez-vous qu'aucune instance de 'rmiregistry' ne tourne déjà sur le 
-  port 1099 avant de lancer RMIServer.
-
-===========================================================================
-Développé dans le cadre du module Réseau et Systèmes Distribués.
-===========================================================================
+========================================================================
+                     RÉALISÉ DANS LE CADRE DU PROJET
+========================================================================
