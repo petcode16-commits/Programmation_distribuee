@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#define BUF_SIZE 256
+
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <host_central> <port_tcp>\n", argv[0]);
@@ -17,48 +19,46 @@ int main(int argc, char *argv[]) {
     inet_pton(AF_INET, argv[1], &addr.sin_addr);
 
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("Connexion au Central échouée");
+        perror("Connexion échouée");
         exit(1);
     }
 
-    // Identification auprès du Central
-    dprintf(sock, "CONSOLE\n");
+    // Identification (Optionnel pour les commandes, mais propre)
+    dprintf(sock, "CONSOLE_CMD\n");
 
-    printf("====================================================\n");
-    printf("   CONSOLE DE COMMANDE\n");
-    printf("====================================================\n");
-    printf("Formats autorisés :\n");
-    printf("  1. Manuel : <PIECE> <PUISSANCE> (Puissance: 0 à 5)\n");
-    printf("  2. Auto   : <PIECE> AUTO <TEMP> (Temp cible: ex 20)\n");
-    printf("----------------------------------------------------\n");
+    printf("==========================================\n");
+    printf("   CONSOLE DE COMMANDE (ÉMETTEUR D'ORDRES)\n");
+    printf("==========================================\n");
+    printf("Formats acceptés :\n");
+    printf("  - <Piece> <Puissance(0-5)>  -> ex: Salon 3\n");
+    printf("  - <Piece> A <Cible(5-35)>   -> ex: Salon A 21\n");
+    printf("  - 'exit' pour quitter\n\n");
 
-    char line[256];
-    while (printf("> ") && fgets(line, sizeof(line), stdin)) {
-        char piece[32], mode[16];
-        int valeur;
+    char line[BUF_SIZE];
+    while (1) {
+        printf("Commande > ");
+        if (!fgets(line, sizeof(line), stdin)) break;
+        if (strncmp(line, "exit", 4) == 0) break;
 
-        // Cas 1 : Mode Manuel (Ex: Salon 3)
-        if (sscanf(line, "%s %d", piece, &valeur) == 2) {
-            // VERIFICATION DE LA PUISSANCE (0 à 5)
-            if (valeur < 0 || valeur > 5) {
-                printf("❌ Erreur : La puissance doit être comprise entre 0 et 5.\n");
-            } else {
-                dprintf(sock, "SET %s %d\n", piece, valeur);
-                printf("✅ Commande envoyée : %s -> Puissance %d\n", piece, valeur);
-            }
+        char piece[32];
+        char mode[10];
+        int val;
+
+        // Cas 1 : Mode AUTO (ex: Salon A 22)
+        if (sscanf(line, "%s A %d", piece, &val) == 2) {
+            dprintf(sock, "AUTO %s %d\n", piece, val);
+            printf("✅ Ordre AUTO envoyé pour %s (Cible: %d°C)\n", piece, val);
         }
-        // Cas 2 : Mode AUTO (Ex: Salon AUTO 21)
-        else if (sscanf(line, "%s %s %d", piece, mode, &valeur) == 3 && strcmp(mode, "AUTO") == 0) {
-            // Ici valeur est une température, on peut aussi mettre une limite (ex: 10 à 30°C)
-            if (valeur < 5 || valeur > 35) {
-                 printf("❌ Erreur : La température cible doit être entre 5 et 35°C.\n");
+        // Cas 2 : Mode MANUEL (ex: Salon 3)
+        else if (sscanf(line, "%s %d", piece, &val) == 2) {
+            if (val < 0 || val > 5) {
+                printf("❌ Erreur : Puissance doit être entre 0 et 5\n");
             } else {
-                dprintf(sock, "AUTO %s %d\n", piece, valeur);
-                printf("✅ Mode AUTO activé : %s -> Cible %d°C\n", piece, valeur);
+                dprintf(sock, "SET %s %d\n", piece, val);
+                printf("✅ Ordre MANUEL envoyé pour %s (Puissance: %d)\n", piece, val);
             }
-        }
-        else {
-            printf("⚠️ Format invalide ! Utilisez : <Piece> <0-5> OU <Piece> AUTO <Temp>\n");
+        } else {
+            printf("⚠️ Format invalide.\n");
         }
     }
 
