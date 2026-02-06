@@ -1,47 +1,59 @@
 #!/bin/bash
 
 # Configuration
+PORT_TCP=8080
+IP_MCAST="224.0.0.1"
+PORT_MCAST=9000
 SESSION="domotique"
-CENTRAL_HOST="localhost"
-CENTRAL_PORT=8080
 
-# --- ÉTAPE 0 : COMPILATION ---
-echo "[PROJET] Compilation en cours..."
-# On s'assure que le dossier est propre et on compile tout
+echo "--- Compilation ---"
 make clean && make
-javac *.java
+if [ $? -ne 0 ]; then echo "Erreur de compilation !"; exit 1; fi
 
-# Détruire une ancienne session si elle existe
+# Nettoyage avant lancement
 tmux kill-session -t $SESSION 2>/dev/null
+tmux new-session -d -s $SESSION -n "Serveurs"
 
-# --- ÉTAPE 1 : SERVEURS (Fenêtre 0) ---
-# Panneau 1 : Central C | Panneau 2 : RMIServer Java | Panneau 3 : ConsoleRMI
-tmux new-session -d -s $SESSION -n "Serveurs" "./central $CENTRAL_PORT"
-sleep 1 # Laisser le temps au Central de bind les ports
-tmux split-window -h -t $SESSION "java RMIServer; exec bash"
-sleep 2 # Laisser le RMI Server créer le registre
-tmux split-window -v -t $SESSION "java ConsoleRMI; exec bash"
+# Fenêtre 0 : Central et RMI
+tmux send-keys -t $SESSION:0 "./central $PORT_TCP" C-m
+tmux split-window -h -t $SESSION:0
+tmux send-keys -t $SESSION:0 "java RMIServer" C-m
 
-# --- ÉTAPE 2 : SALON - Port 5000 (Fenêtre 1) ---
-tmux new-window -t $SESSION -n "Salon" "java Air 224.0.0.1 5000 Salon; exec bash"
-tmux split-window -h -t $SESSION "./thermometre 224.0.0.1 5000 Salon $CENTRAL_HOST $CENTRAL_PORT; exec bash"
-tmux split-window -v -t $SESSION "./chauffage 224.0.0.1 5000 Salon $CENTRAL_HOST $CENTRAL_PORT; exec bash"
+# Fenêtre 1 : Salon
+tmux new-window -t $SESSION -n "Salon"
+tmux send-keys -t $SESSION:1 "java Air $IP_MCAST $PORT_MCAST Salon" C-m
+tmux split-window -v -t $SESSION:1
+tmux send-keys -t $SESSION:1 "./thermometre $IP_MCAST $PORT_MCAST Salon localhost $PORT_TCP" C-m
+tmux split-window -h -t $SESSION:1
+tmux send-keys -t $SESSION:1 "./chauffage $IP_MCAST $PORT_MCAST Salon localhost $PORT_TCP" C-m
 
-# --- ÉTAPE 3 : CUISINE - Port 5001 (Fenêtre 2) ---
-tmux new-window -t $SESSION -n "Cuisine" "java Air 224.0.0.1 5001 Cuisine; exec bash"
-tmux split-window -h -t $SESSION "./thermometre 224.0.0.1 5001 Cuisine $CENTRAL_HOST $CENTRAL_PORT; exec bash"
-tmux split-window -v -t $SESSION "./chauffage 224.0.0.1 5001 Cuisine $CENTRAL_HOST $CENTRAL_PORT; exec bash"
+# Fenêtre 2 : Chambre
+tmux new-window -t $SESSION -n "Chambre"
+tmux send-keys -t $SESSION:2 "java Air $IP_MCAST $PORT_MCAST Chambre" C-m
+tmux split-window -v -t $SESSION:2
+tmux send-keys -t $SESSION:2 "./thermometre $IP_MCAST $PORT_MCAST Chambre localhost $PORT_TCP" C-m
+tmux split-window -h -t $SESSION:2
+tmux send-keys -t $SESSION:2 "./chauffage $IP_MCAST $PORT_MCAST Chambre localhost $PORT_TCP" C-m
 
-# --- ÉTAPE 4 : CHAMBRE - Port 5002 (Fenêtre 3) ---
-tmux new-window -t $SESSION -n "Chambre" "java Air 224.0.0.1 5002 Chambre; exec bash"
-tmux split-window -h -t $SESSION "./thermometre 224.0.0.1 5002 Chambre $CENTRAL_HOST $CENTRAL_PORT; exec bash"
-tmux split-window -v -t $SESSION "./chauffage 224.0.0.1 5002 Chambre $CENTRAL_HOST $CENTRAL_PORT; exec bash"
+# Fenêtre 3 : Cuisine
+tmux new-window -t $SESSION -n "Cuisine"
+tmux send-keys -t $SESSION:3 "java Air $IP_MCAST $PORT_MCAST Cuisine" C-m
+tmux split-window -v -t $SESSION:3
+tmux send-keys -t $SESSION:3 "./thermometre $IP_MCAST $PORT_MCAST Cuisine localhost $PORT_TCP" C-m
+tmux split-window -h -t $SESSION:3
+tmux send-keys -t $SESSION:3 "./chauffage $IP_MCAST $PORT_MCAST Cuisine localhost $PORT_TCP" C-m
 
-# --- ÉTAPE 5 : CONSOLES DE TEST C (Fenêtre 4) ---
-tmux new-window -t $SESSION -n "Consoles_C" "./console_control $CENTRAL_HOST $CENTRAL_PORT; exec bash"
-tmux split-window -v -t $SESSION "./console_cmd $CENTRAL_HOST $CENTRAL_PORT; exec bash"
+# Fenêtre 4 : Consoles (Monitoring + Commande)
+tmux new-window -t $SESSION -n "Consoles"
+# En haut : La console de monitoring (affichage seul)
+tmux send-keys -t $SESSION:4 "./console_control localhost $PORT_TCP" C-m
+# En bas à gauche : La console de commande (envoi d'ordres)
+tmux split-window -v -t $SESSION:4
+tmux send-keys -t $SESSION:4 "./console_cmd localhost $PORT_TCP" C-m
+# En bas à droite : La console RMI (Java)
+tmux split-window -h -t $SESSION:4
+tmux send-keys -t $SESSION:4 "sleep 2; java ConsoleRMI" C-m
 
-# --- FINALISATION ---
-# Retour à la fenêtre des serveurs
-tmux select-window -t $SESSION:0
+# Retour à la vue des consoles pour commencer le test
+tmux select-window -t $SESSION:4
 tmux attach-session -t $SESSION
