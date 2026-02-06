@@ -1,45 +1,47 @@
-# --- Configuration du compilateur C ---
+# --- Configuration ---
 CC = gcc
-CFLAGS = -Wall -Wextra -g
-DEFS = -D_GNU_SOURCE 
+CFLAGS = -Wall -Wextra -g -D_GNU_SOURCE
+LDFLAGS = 
 
-# --- Configuration Java ---
-JAVAC = javac
-# On liste les fichiers Java réels (HomeInterface est le contrat indispensable)
-JAVA_SOURCES = MessageTemperature.java Air.java HomeInterface.java RMIServer.java ConsoleRMI.java
+# Liste des exécutables C
+EXEC = central thermometre chauffage console_control console_cmd
 
-# --- Cibles principales ---
-all: msg_temperature.o central thermometre chauffage console_control console_cmd compile_java
+# --- Règles principales ---
+all: $(EXEC) java_modules
 
-# 1. Compilation de la bibliothèque de protocole commune (Objet)
+# Compilation de l'objet commun pour le protocole binaire
 msg_temperature.o: msg_temperature.c msg_temperature.h
-	$(CC) $(CFLAGS) $(DEFS) -c msg_temperature.c
+	$(CC) $(CFLAGS) -c msg_temperature.c -o msg_temperature.o
 
-# 2. Compilation des exécutables C
-central: central.c msg_temperature.h
-	$(CC) $(CFLAGS) $(DEFS) central.c msg_temperature.o -o central
+# Compilation des exécutables individuels
+central: central.c
+	$(CC) $(CFLAGS) central.c -o central
 
-thermometre: thermometre.c msg_temperature.h
-	$(CC) $(CFLAGS) $(DEFS) thermometre.c msg_temperature.o -o thermometre
+# Attention : thermometre et chauffage ont besoin de msg_temperature.o
+thermometre: thermometre.c msg_temperature.o
+	$(CC) $(CFLAGS) thermometre.c msg_temperature.o -o thermometre
 
-chauffage: chauffage.c msg_temperature.h
-	$(CC) $(CFLAGS) $(DEFS) chauffage.c msg_temperature.o -o chauffage
+chauffage: chauffage.c msg_temperature.o
+	$(CC) $(CFLAGS) chauffage.c msg_temperature.o -o chauffage
 
 console_control: console_control.c
-	$(CC) $(CFLAGS) $(DEFS) console_control.c -o console_control
+	$(CC) $(CFLAGS) console_control.c -o console_control
 
 console_cmd: console_cmd.c
-	$(CC) $(CFLAGS) $(DEFS) console_cmd.c -o console_cmd
+	$(CC) $(CFLAGS) console_cmd.c -o console_cmd
 
-# 3. Compilation des fichiers Java
-# Utiliser une cible qui vérifie les fichiers sources
-compile_java: $(JAVA_SOURCES)
-	$(JAVAC) $(JAVA_SOURCES)
+# --- Modules Java ---
+# Compile tous les .java présents dans le dossier
+java_modules:
+	javac *.java
 
 # --- Nettoyage ---
 clean:
-	rm -f *.o central thermometre chauffage console_control console_cmd *.class
-	@echo "Nettoyage terminé. Tous les binaires et .class ont été supprimés."
+	rm -f $(EXEC) *.o *.class
+	@echo "Nettoyage terminé."
 
-# Cibles "phonies" (ne sont pas des fichiers)
-.PHONY: all clean compile_java
+# --- Aide ---
+help:
+	@echo "Usage :"
+	@echo "  make         : Compile tout (C et Java)"
+	@echo "  make clean   : Supprime les exécutables et les .class"

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #define BUF_SIZE 256
 
@@ -12,63 +13,45 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // 1. Création de la socket TCP
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("Erreur création socket");
-        exit(1);
-    }
-
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(atoi(argv[2]));
-    if (inet_pton(AF_INET, argv[1], &addr.sin_addr) <= 0) {
-        perror("Adresse invalide");
-        exit(1);
+
+    // Résolution d'adresse plus robuste
+    if (strcmp(argv[1], "localhost") == 0) {
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    } else {
+        addr.sin_addr.s_addr = inet_addr(argv[1]);
     }
 
-    // 2. Connexion au Central
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("Connexion au Central échouée");
         exit(1);
     }
 
-    // 3. IDENTIFICATION (Crucial pour recevoir les données)
-    // On envoie "CONSOLE\n" pour que le Central nous enregistre comme afficheur
     dprintf(sock, "CONSOLE\n");
 
     printf("====================================================\n");
-    printf("   TABLEAU DE BORD (MONITORING)\n");
+    printf("   MONITORING DOMOTIQUE (127.0.0.1)\n");
     printf("====================================================\n");
-    printf("[INFO] Connecté au Central. En attente de données...\n\n");
 
     char buf[BUF_SIZE];
     while (1) {
-        // 4. Lecture des messages relayés par le Central
         int n = read(sock, buf, BUF_SIZE - 1);
-        if (n <= 0) {
-            printf("\n[ALERTE] Connexion perdue avec le Central.\n");
-            break;
-        }
+        if (n <= 0) break;
         buf[n] = '\0';
 
         char piece[32], statut[32];
         int valeur;
 
-        // Cas A : Mise à jour de température (Format: UPDATE Salon 22)
         if (sscanf(buf, "UPDATE %s %d", piece, &valeur) == 2) {
             printf("🌡️  [%-10s] Température : %2d°C\n", piece, valeur);
-        }
-        // Cas B : Changement d'état du chauffage (Format: STAT Salon AUTO_ON 3)
-        else if (sscanf(buf, "STAT %s %s %d", piece, statut, &valeur) == 3) {
-            printf("🔥 [%-10s] Chauffage   : %-10s | Puissance : %d\n", piece, statut, valeur);
-        }
-        // Cas C : Message d'erreur du Central
-        else if (strncmp(buf, "ERROR", 5) == 0) {
-            printf("❌ [ERREUR] %s", buf);
+        } else if (sscanf(buf, "STAT %s %s %d", piece, statut, &valeur) == 3) {
+            printf("🔥 [%-10s] Chauffage   : %-10s | Pwr: %d\n", piece, statut, valeur);
         }
     }
-
     close(sock);
     return 0;
 }
