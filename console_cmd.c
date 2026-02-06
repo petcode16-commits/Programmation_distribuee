@@ -14,25 +14,25 @@ int main(int argc, char *argv[]) {
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr)); // Correction sin_zero warning
     addr.sin_family = AF_INET;
     addr.sin_port = htons(atoi(argv[2]));
-    inet_pton(AF_INET, argv[1], &addr.sin_addr);
-
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("Connexion échouée");
+    
+    if (inet_pton(AF_INET, argv[1], &addr.sin_addr) <= 0) {
+        perror("Adresse invalide");
         exit(1);
     }
 
-    // Identification (Optionnel pour les commandes, mais propre)
-    dprintf(sock, "CONSOLE_CMD\n");
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("Connexion au Central échouée");
+        exit(1);
+    }
 
     printf("==========================================\n");
     printf("   CONSOLE DE COMMANDE (ÉMETTEUR D'ORDRES)\n");
     printf("==========================================\n");
-    printf("Formats acceptés :\n");
-    printf("  - <Piece> <Puissance(0-5)>  -> ex: Salon 3\n");
-    printf("  - <Piece> A <Cible(5-35)>   -> ex: Salon A 21\n");
-    printf("  - 'exit' pour quitter\n\n");
+    printf("Formats : \n  - Salon 3 (Manuel)\n  - Salon A 22 (Auto)\n");
+    printf("Tapez 'exit' pour quitter.\n\n");
 
     char line[BUF_SIZE];
     while (1) {
@@ -41,24 +41,23 @@ int main(int argc, char *argv[]) {
         if (strncmp(line, "exit", 4) == 0) break;
 
         char piece[32];
-        char mode[10];
         int val;
 
-        // Cas 1 : Mode AUTO (ex: Salon A 22)
+        // Cas Auto : Piece A 22
         if (sscanf(line, "%s A %d", piece, &val) == 2) {
             dprintf(sock, "AUTO %s %d\n", piece, val);
-            printf("✅ Ordre AUTO envoyé pour %s (Cible: %d°C)\n", piece, val);
+            printf("✅ Ordre AUTO envoyé (%s -> %d°C)\n", piece, val);
         }
-        // Cas 2 : Mode MANUEL (ex: Salon 3)
+        // Cas Manuel : Piece 3
         else if (sscanf(line, "%s %d", piece, &val) == 2) {
             if (val < 0 || val > 5) {
-                printf("❌ Erreur : Puissance doit être entre 0 et 5\n");
+                printf("❌ Puissance invalide (0-5).\n");
             } else {
                 dprintf(sock, "SET %s %d\n", piece, val);
-                printf("✅ Ordre MANUEL envoyé pour %s (Puissance: %d)\n", piece, val);
+                printf("✅ Ordre MANUEL envoyé (%s -> %d)\n", piece, val);
             }
         } else {
-            printf("⚠️ Format invalide.\n");
+            printf("⚠️ Format : <Piece> <Valeur> ou <Piece> A <Cible>\n");
         }
     }
 
