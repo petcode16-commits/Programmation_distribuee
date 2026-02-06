@@ -1,12 +1,12 @@
 # --- Configuration du compilateur C ---
 CC = gcc
 CFLAGS = -Wall -Wextra -g
-# On utilise -D_GNU_SOURCE pour éviter les soucis de structures réseaux sur certaines libC
 DEFS = -D_GNU_SOURCE 
 
 # --- Configuration Java ---
 JAVAC = javac
-JAVA_FILES = MessageTemperature.java Air.java RemoteConsole.java RMIServer.java ConsoleRMI.java
+# On liste les fichiers Java réels (HomeInterface est le contrat indispensable)
+JAVA_SOURCES = MessageTemperature.java Air.java HomeInterface.java RMIServer.java ConsoleRMI.java
 
 # --- Cibles principales ---
 all: msg_temperature.o central thermometre chauffage console_control console_cmd compile_java
@@ -16,17 +16,15 @@ msg_temperature.o: msg_temperature.c msg_temperature.h
 	$(CC) $(CFLAGS) $(DEFS) -c msg_temperature.c
 
 # 2. Compilation des exécutables C
-# Chaque exécutable est lié avec msg_temperature.o pour le protocole
-central: central.c msg_temperature.o
+central: central.c msg_temperature.h
 	$(CC) $(CFLAGS) $(DEFS) central.c msg_temperature.o -o central
 
-thermometre: thermometre.c msg_temperature.o
+thermometre: thermometre.c msg_temperature.h
 	$(CC) $(CFLAGS) $(DEFS) thermometre.c msg_temperature.o -o thermometre
 
-chauffage: chauffage.c msg_temperature.o
+chauffage: chauffage.c msg_temperature.h
 	$(CC) $(CFLAGS) $(DEFS) chauffage.c msg_temperature.o -o chauffage
 
-# Consoles C (plus simples, pas besoin de msg_temperature car elles parlent en texte avec le Central)
 console_control: console_control.c
 	$(CC) $(CFLAGS) $(DEFS) console_control.c -o console_control
 
@@ -34,12 +32,14 @@ console_cmd: console_cmd.c
 	$(CC) $(CFLAGS) $(DEFS) console_cmd.c -o console_cmd
 
 # 3. Compilation des fichiers Java
-compile_java:
-	$(JAVAC) $(JAVA_FILES)
+# Utiliser une cible qui vérifie les fichiers sources
+compile_java: $(JAVA_SOURCES)
+	$(JAVAC) $(JAVA_SOURCES)
 
 # --- Nettoyage ---
 clean:
 	rm -f *.o central thermometre chauffage console_control console_cmd *.class
-	@echo "Nettoyage terminé."
+	@echo "Nettoyage terminé. Tous les binaires et .class ont été supprimés."
 
+# Cibles "phonies" (ne sont pas des fichiers)
 .PHONY: all clean compile_java

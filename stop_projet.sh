@@ -1,21 +1,20 @@
 #!/bin/bash
 
-echo "[PROJET] Arrêt de tous les modules..."
+echo "[PROJET] Arrêt de tous les modules et fermeture des fenêtres..."
 
-# Tuer les processus C
-killall central 2>/dev/null
-killall thermometre 2>/dev/null
-killall chauffage 2>/dev/null
-killall console_control 2>/dev/null
-killall console_cmd 2>/dev/null
+# 1. On ferme la session tmux (cela tue tout ce qui tourne dedans proprement)
+tmux kill-session -t domotique 2>/dev/null
 
-# Tuer les processus Java (Air et RMIServer)
-# On cherche les noms de classe spécifiques pour ne pas tuer d'autres applis Java
+# 2. Sécurité : On tue les processus qui pourraient avoir survécu 
+# (au cas où ils auraient été lancés hors tmux)
+killall central thermometre chauffage console_control console_cmd 2>/dev/null
+
+# 3. Tuer les processus Java spécifiques
 pkill -f "java Air"
 pkill -f "java RMIServer"
 pkill -f "java ConsoleRMI"
 
-# Tuer le registre RMI s'il a été lancé séparément
-pkill -f "rmiregistry"
+# 4. Nettoyage des fichiers temporaires (si nécessaire)
+# rm -f /tmp/domotique_pipe (exemple si tu utilisais des pipes)
 
-echo "[PROJET] Système arrêté proprement."
+echo "[PROJET] Tout le système a été arrêté avec succès."
