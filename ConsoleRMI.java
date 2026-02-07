@@ -50,7 +50,7 @@ public class ConsoleRMI {
                         home.setPower(room, pwr);
                         System.out.println("✅ Ordre de puissance envoyé.");
                     } else if (choix == 2) {
-                        System.out.print("Température cible (5-35) : ");
+                        System.out.print("Température cible (15-35) : ");
                         int temp = sc.nextInt();
                         home.setAuto(room, temp);
                         System.out.println("✅ Mode automatique activé.");

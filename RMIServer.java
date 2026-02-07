@@ -87,8 +87,8 @@ public class RMIServer extends UnicastRemoteObject implements HomeInterface {
 
     @Override
     public synchronized void setAuto(String room, int targetTemp) throws RemoteException {
-        if (targetTemp < 5 || targetTemp > 35) {
-            throw new RemoteException("Erreur : Température cible invalide (5-35°C).");
+        if (targetTemp < 15 || targetTemp > 35) {
+            throw new RemoteException("Erreur : Température cible invalide (15-35°C).");
         }
         sendToCentral("AUTO " + room + " " + targetTemp);
     }
